@@ -456,7 +456,7 @@ def show_delete_page():
 
 # Função para análise inteligente anual com gráficos mais claros e aluguel incluso, exceto nas dicas e na categoria mais cara
 def show_analysis_page():
-    st.title("Análise Inteligente de Gastos Anual")
+    st.title("Análise Inteligente dos Gastos Anuais")
 
     # Filtro por ano
     st.subheader("Selecione o Ano para Análise")
