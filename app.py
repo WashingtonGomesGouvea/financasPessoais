@@ -140,7 +140,7 @@ def get_all_expenses():
 
 # Página principal - Despesas por Mês
 def show_home_page():
-    st.title("Despesas por Mês")
+    st.title("Despesas por Ano e Mês")
 
     # Gráfico de despesas mensais
     st.header("Gráfico de Despesas por Mês")
