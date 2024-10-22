@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import certifi
 import base64
+import numpy as np
 
 MONGODB_URI = st.secrets["MONGODB_URI"]
 
@@ -453,11 +454,117 @@ def show_delete_page():
     else:
         st.write("Nenhuma despesa registrada ainda.")
 
-# Sidebar para navegação, incluindo a nova página de apagar despesas
+# Função para análise inteligente anual com gráficos mais claros e aluguel incluso, exceto nas dicas e na categoria mais cara
+def show_analysis_page():
+    st.title("Análise Inteligente de Gastos Anual")
+
+    # Filtro por ano
+    st.subheader("Selecione o Ano para Análise")
+    year = st.number_input("Ano", min_value=2000, max_value=2100, value=datetime.today().year)
+
+    # Buscar todas as despesas filtradas pelo ano
+    expenses = get_all_expenses()
+
+    if expenses:
+        df = pd.DataFrame(expenses)
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%d/%m/%Y')  # Formato brasileiro DD/MM/AAAA
+        df['Mês'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.month
+        df['Dia'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.day
+        df['Ano'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.year
+
+        # Filtrando as despesas pelo ano selecionado
+        filtered_df = df[df['Ano'] == year]
+
+        # 1. Gráfico de comparação mensal (Inclui o Aluguel)
+        st.subheader(f"Comparação de Gastos Mensais em {year}")
+        monthly_expenses_incl_rent = filtered_df.groupby('Mês')['amount'].sum()
+
+        # Gráfico de barras + tendência
+        fig = px.bar(monthly_expenses_incl_rent, labels={'x': 'Mês', 'y': 'Total (R$)'}, title="Gastos Mensais com Aluguel")
+        fig.add_scatter(x=monthly_expenses_incl_rent.index, y=monthly_expenses_incl_rent, mode='lines+markers', name='Tendência')
+        st.plotly_chart(fig)
+
+        # 2. Gráfico de variação percentual de cada mês (Inclui o Aluguel)
+        monthly_expenses_pct_change = monthly_expenses_incl_rent.pct_change().fillna(0) * 100
+        st.subheader("Variação Percentual de Gastos")
+
+        # Explicação sobre a variação percentual
+        st.write("""
+        A **Variação Percentual Mensal** indica o quanto os gastos mudaram de um mês para o outro. Valores positivos indicam que as despesas aumentaram em relação ao mês anterior, enquanto valores negativos indicam uma redução nos gastos.
+        A cor do gráfico ajuda a visualizar rapidamente essa variação: verde indica aumento nos gastos, enquanto vermelho indica uma redução.
+        """)
+
+        # Ajustando os labels no gráfico
+        fig_pct = px.bar(monthly_expenses_pct_change, labels={'x': 'Mês', 'y': 'Variação (%)'}, 
+                         title="Variação Percentual Mensal", text=monthly_expenses_pct_change.map("{:.2f}%".format), 
+                         color=monthly_expenses_pct_change, color_continuous_scale="RdYlGn")
+        
+        # Corrigindo o eixo x e adicionando rótulos para cada barra
+        fig_pct.update_layout(xaxis=dict(tickvals=monthly_expenses_incl_rent.index, ticktext=monthly_expenses_incl_rent.index), 
+                              yaxis_title="Variação (%)", xaxis_title="Mês")
+        st.plotly_chart(fig_pct)
+
+        # 3. Gráfico de despesas por categoria ao longo do ano (Inclui Aluguel)
+        st.subheader(f"Gastos por Categoria em {year}")
+        category_expenses_incl_rent = filtered_df.groupby('category')['amount'].sum().sort_values(ascending=False)
+
+        # Gráfico de pizza para destacar as categorias mais caras
+        fig_category = px.pie(category_expenses_incl_rent, values='amount', names=category_expenses_incl_rent.index, 
+                              title="Distribuição de Gastos por Categoria", hole=0.4)
+        st.plotly_chart(fig_category)
+
+        # 4. Categoria mais cara no ano (Sem Aluguel)
+        st.subheader(f"Categoria mais cara no ano de {year}")
+        filtered_df_no_rent = filtered_df[filtered_df['category'] != "Aluguel"]
+        most_expensive_category_no_rent = filtered_df_no_rent.groupby('category')['amount'].sum().idxmax()
+        highest_expense_no_rent = filtered_df_no_rent.groupby('category')['amount'].sum().max()
+
+        st.write(f"**Categoria mais cara no ano:** {most_expensive_category_no_rent} - Total Gasto: R$ {highest_expense_no_rent:,.2f}".replace('.', ',').replace(',', '.', 1))
+
+        # Dicas de economia baseadas na categoria mais cara, excluindo o aluguel
+        st.subheader("Dicas para Economia")
+        if most_expensive_category_no_rent == "Energia":
+            st.write("⚡ **Dica:** Para reduzir o consumo de energia, tente desligar dispositivos quando não estiverem em uso ou investir em aparelhos mais eficientes.")
+        elif most_expensive_category_no_rent == "Água":
+            st.write("💧 **Dica:** Considere o uso de redutores de fluxo em torneiras e chuveiros para economizar água.")
+        elif most_expensive_category_no_rent == "Internet":
+            st.write("🌐 **Dica:** Verifique se está pagando por uma velocidade de internet que realmente precisa. Em alguns casos, planos mais baratos podem atender suas necessidades.")
+
+        # 5. Gráfico de picos de gastos diários com categorias e cores diferenciadas (Sem Aluguel)
+        st.subheader(f"Picos de Gastos Diários em {year}")
+
+        # Criar coluna para o eixo X (dia e mês) e excluir aluguel
+        filtered_df_no_rent['Dia_Mês'] = pd.to_datetime(filtered_df_no_rent['date'], format='%d/%m/%Y').dt.strftime('%d/%m')
+
+        # Agrupando despesas por dia/mês e categoria (sem aluguel)
+        daily_expenses_no_rent = filtered_df_no_rent.groupby(['Dia_Mês', 'category'])['amount'].sum().unstack().fillna(0)
+
+        # Gráfico de barras empilhadas com Plotly para identificar picos diários por categoria
+        fig_daily = px.bar(daily_expenses_no_rent.reset_index(), 
+                           x='Dia_Mês', 
+                           y=daily_expenses_no_rent.columns, 
+                           labels={'value': 'Total (R$)', 'Dia_Mês': 'Dia/Mês'},
+                           title="Picos de Gastos Diários por Categoria",
+                           barmode='stack')
+
+        fig_daily.update_layout(xaxis_title='Dia e Mês', yaxis_title='Total Gasto (R$)')
+        st.plotly_chart(fig_daily)
+
+        # Analisando possíveis picos anormais
+        avg_expense = np.mean(daily_expenses_no_rent.sum(axis=1))
+        max_expense = np.max(daily_expenses_no_rent.sum(axis=1))
+        if max_expense > 1.5 * avg_expense:  # Se o maior gasto for 50% maior que a média
+            st.write(f"⚠️ **Alerta:** Houve um pico de gastos no dia com maior despesa. O valor foi R$ {max_expense:,.2f}, bem acima da média diária de R$ {avg_expense:,.2f}. Verifique as despesas deste dia.")
+    else:
+        st.write(f"Nenhuma despesa registrada para o ano de {year}.")
+
+
+
+# Sidebar para navegação
 st.sidebar.title("Menu")
 page = st.sidebar.selectbox(
     "Selecione a página", 
-    ["Despesas por Mês", "Resumo de Despesas", "Editar Despesas", "Apagar Despesas"]
+    ["Despesas por Mês", "Resumo de Despesas", "Análise Inteligente", "Editar Despesas", "Apagar Despesas"]
 )
 
 # Mostrar a página de acordo com a seleção
@@ -465,6 +572,8 @@ if page == "Despesas por Mês":
     show_home_page()
 elif page == "Resumo de Despesas":
     show_summary_page()
+elif page == "Análise Inteligente":
+    show_analysis_page()
 elif page == "Editar Despesas":
     show_edit_page()
 elif page == "Apagar Despesas":
