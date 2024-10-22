@@ -21,7 +21,7 @@ try:
     client.admin.command('ping')  # Verificar se a conexão é bem-sucedida
     db = client['PersonalFinances']
     expenses_collection = db['expenses']
-    print("Conexão com o MongoDB estabelecida com sucesso!")
+    print("Conexão com o MongoDB estabelecida com sucesso!!")
 except Exception as e:
     print(f"Erro de conexão com o MongoDB: {e}")
     sys.exit(1)  # type: ignore # Encerra o programa com código de erro

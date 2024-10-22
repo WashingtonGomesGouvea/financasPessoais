@@ -1,0 +1,5 @@
+certifi==2024.2.2
+pandas==2.2.3
+plotly==5.24.1
+pymongo==4.7.3
+streamlit==1.39.0
