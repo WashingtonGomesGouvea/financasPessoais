@@ -100,12 +100,15 @@ def convert_to_datetime(d):
 # Função para adicionar uma nova despesa com o campo Observações e anexos
 def add_expense(name, amount, date, category, notes, attachment=None):
     try:
+        # Tratamento direto para remover emojis e caracteres especiais do campo categoria
+        category = category.replace('💧 ', '').replace('⚡ ', '').replace('🏠 ', '').replace('🌐 ', '')
+        
         new_expense = {
             "name": name,
             "amount": amount,
             "date": convert_to_datetime(date),
-            "category": category,
-            "notes": notes,  # Adicionando o campo de observações
+            "category": category,  # Categoria sem emojis
+            "notes": notes,  # Observações podem conter emojis
             "is_paid": False,
             "payment_date": None
         }
@@ -125,13 +128,16 @@ def add_expense(name, amount, date, category, notes, attachment=None):
 # Função para editar uma despesa existente, incluindo o campo Observações e anexos
 def edit_expense(expense_id, name, amount, date, category, is_paid, payment_date, notes, attachment=None):
     try:
+        # Tratamento direto para remover emojis e caracteres especiais do campo categoria
+        category = category.replace('💧 ', '').replace('⚡ ', '').replace('🏠 ', '').replace('🌐 ', '')
+
         update_fields = {
             "name": name,
             "amount": amount,
             "date": convert_to_datetime(date),
-            "category": category,
+            "category": category,  # Categoria sem emojis
             "is_paid": is_paid,
-            "notes": notes  # Adicionando o campo de observações na edição
+            "notes": notes  # Observações podem conter emojis
         }
 
         if is_paid:
@@ -150,6 +156,7 @@ def edit_expense(expense_id, name, amount, date, category, is_paid, payment_date
     except Exception as e:
         st.error(f"Erro ao editar a despesa: {e}")
         return False
+
 
 
 # Função para listar todas as despesas
