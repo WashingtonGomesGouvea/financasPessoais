@@ -102,8 +102,10 @@ def convert_to_datetime(d):
 def add_expense(name, amount, date, category, notes, attachment=None):
     try:
         # Tratamento direto para remover emojis e caracteres especiais do campo categoria
-        category = category.replace('💧 ', '').replace('⚡ ', '').replace('🏠 ', '').replace('🌐 ', '')
-        
+        category = category.replace('💧 ', '').replace('⚡ ', '').replace('🏠 ', '').replace('🌐 ', '') \
+                           .replace('🍔 ', '').replace('🚌 ', '').replace('🏥 ', '').replace('📚 ', '') \
+                           .replace('🎉 ', '').replace('👗 ', '').replace('💼 ', '').replace('🏖️ ', '')
+
         new_expense = {
             "name": name,
             "amount": amount,
@@ -164,7 +166,7 @@ def edit_expense(expense_id, name, amount, date, category, is_paid, payment_date
 def get_all_expenses():
     return list(expenses_collection.find().sort("date", -1))
 
-# Página principal - Despesas por Mês
+# Página principal - Despesas por Mês com Formulário de Adição
 def show_home_page():
     st.title("Despesas por Ano e Mês")
 
@@ -199,9 +201,12 @@ def show_home_page():
         name = st.text_input("Descrição", key='name')
         amount = st.number_input("Valor (R$)", min_value=0.0, key='amount')
         date_input = st.date_input("Data", value=datetime.today().date())  # Renomeado para evitar conflito com o módulo datetime
+        
+        # Adicionando novas opções de categorias com emojis
         category = st.selectbox(
             "Categoria", 
-            ["💧 Água", "⚡ Energia", "🏠 Aluguel", "🌐 Internet"], 
+            ["💧 Água", "⚡ Energia", "🏠 Aluguel", "🌐 Internet", "🍔 Alimentação", "🚌 Transporte", 
+             "🏥 Saúde", "📚 Educação", "🎉 Lazer", "👗 Roupas", "💼 Trabalho", "🏖️ Viagem", "Outros"], 
             key='category_display'
         )
         notes = st.text_area("Observações", key='notes')  # Campo de texto para observações
@@ -211,16 +216,19 @@ def show_home_page():
 
         submit_button = st.form_submit_button("Adicionar")
 
+        # Validação do formulário antes de salvar
         if submit_button:
-            if name and amount > 0 and category:
+            if not name:
+                st.error("O campo de descrição é obrigatório.")
+            elif amount <= 0:
+                st.error("O valor deve ser maior que zero.")
+            else:
+                # Chamada da função add_expense para salvar no MongoDB
                 if add_expense(name, amount, date_input, category, notes, attachment):
                     st.success(f"Despesa adicionada com sucesso: {name} - R$ {amount}")
                 else:
                     st.error("Erro ao adicionar a despesa.")
-            else:
-                st.error("Por favor, preencha todos os campos corretamente.")
-
-
+                    
 # Página de resumo de despesas
 def show_summary_page():
     st.title("Resumo de Despesas do Período")
@@ -455,6 +463,7 @@ def show_delete_page():
         st.write("Nenhuma despesa registrada ainda.")
 
 # Função para análise inteligente anual com gráficos mais claros e aluguel incluso, exceto nas dicas e na categoria mais cara
+
 def show_analysis_page():
     st.title("Análise Inteligente dos Gastos Anuais")
 
@@ -467,10 +476,9 @@ def show_analysis_page():
 
     if expenses:
         df = pd.DataFrame(expenses)
-        df['date'] = pd.to_datetime(df['date']).dt.strftime('%d/%m/%Y')  # Formato brasileiro DD/MM/AAAA
-        df['Mês'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.month
-        df['Dia'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.day
-        df['Ano'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.year
+        df['date'] = pd.to_datetime(df['date'], dayfirst=True).dt.strftime('%d/%m/%Y')  # Formato brasileiro DD/MM/AAAA
+        df['Mês'] = pd.to_datetime(df['date'], format='%d/%m/%Y', dayfirst=True).dt.month
+        df['Ano'] = pd.to_datetime(df['date'], format='%d/%m/%Y', dayfirst=True).dt.year
 
         # Filtrando as despesas pelo ano selecionado
         filtered_df = df[df['Ano'] == year]
@@ -484,6 +492,10 @@ def show_analysis_page():
         fig.add_scatter(x=monthly_expenses_incl_rent.index, y=monthly_expenses_incl_rent, mode='lines+markers', name='Tendência')
         st.plotly_chart(fig)
 
+        # Adicionando a Média Mensal
+        monthly_average = monthly_expenses_incl_rent.mean()
+        st.write(f"**Média mensal de gastos:** R$ {monthly_average:.2f}".replace('.', ',').replace(',', '.', 1))
+
         # 2. Gráfico de variação percentual de cada mês (Inclui o Aluguel)
         monthly_expenses_pct_change = monthly_expenses_incl_rent.pct_change().fillna(0) * 100
         st.subheader("Variação Percentual de Gastos")
@@ -491,7 +503,6 @@ def show_analysis_page():
         # Explicação sobre a variação percentual
         st.write("""
         A **Variação Percentual Mensal** indica o quanto os gastos mudaram de um mês para o outro. Valores positivos indicam que as despesas aumentaram em relação ao mês anterior, enquanto valores negativos indicam uma redução nos gastos.
-        A cor do gráfico ajuda a visualizar rapidamente essa variação: verde indica aumento nos gastos, enquanto vermelho indica uma redução.
         """)
 
         # Ajustando os labels no gráfico
@@ -499,7 +510,6 @@ def show_analysis_page():
                          title="Variação Percentual Mensal", text=monthly_expenses_pct_change.map("{:.2f}%".format), 
                          color=monthly_expenses_pct_change, color_continuous_scale="RdYlGn")
         
-        # Corrigindo o eixo x e adicionando rótulos para cada barra
         fig_pct.update_layout(xaxis=dict(tickvals=monthly_expenses_incl_rent.index, ticktext=monthly_expenses_incl_rent.index), 
                               yaxis_title="Variação (%)", xaxis_title="Mês")
         st.plotly_chart(fig_pct)
@@ -512,6 +522,9 @@ def show_analysis_page():
         fig_category = px.pie(category_expenses_incl_rent, values='amount', names=category_expenses_incl_rent.index, 
                               title="Distribuição de Gastos por Categoria", hole=0.4)
         st.plotly_chart(fig_category)
+
+        # Destacar a categoria com maior gasto
+        st.write(f"**Categoria com maior gasto:** {category_expenses_incl_rent.idxmax()}")
 
         # 4. Categoria mais cara no ano (Sem Aluguel)
         st.subheader(f"Categoria mais cara no ano de {year}")
@@ -555,8 +568,91 @@ def show_analysis_page():
         max_expense = np.max(daily_expenses_no_rent.sum(axis=1))
         if max_expense > 1.5 * avg_expense:  # Se o maior gasto for 50% maior que a média
             st.write(f"⚠️ **Alerta:** Houve um pico de gastos no dia com maior despesa. O valor foi R$ {max_expense:,.2f}, bem acima da média diária de R$ {avg_expense:,.2f}. Verifique as despesas deste dia.")
+
+        # Nova funcionalidade: Previsão de Gastos para o Próximo Mês com base na média móvel
+        st.subheader("Previsão de Gastos para o Próximo Mês")
+        if len(monthly_expenses_incl_rent) >= 3:  # Verifica se há dados suficientes para calcular a média móvel
+            # Calculando a média dos últimos 3 meses
+            last_three_months_avg = monthly_expenses_incl_rent.iloc[-3:].mean()
+
+            # Calculando a variação percentual média dos últimos 3 meses
+            pct_change_last_three = monthly_expenses_pct_change.iloc[-3:].mean() / 100
+
+            # Previsão do próximo mês com base na média móvel e variação percentual média
+            predicted_next_month = last_three_months_avg * (1 + pct_change_last_three)
+            st.write(f"**Previsão de gastos para o próximo mês:** R$ {predicted_next_month:.2f}".replace('.', ',').replace(',', '.', 1))
+        else:
+            st.write("Dados insuficientes para prever o próximo mês.")
+        
     else:
         st.write(f"Nenhuma despesa registrada para o ano de {year}.")
+
+     
+
+# Função para exibir visualização de anexos de forma otimizada
+def show_view_files_page():
+    st.title("Visualizar Anexos das Despesas")
+
+    # Filtro por mês e ano
+    st.subheader("Filtrar por Mês e Ano para Visualização de Anexos")
+    month = st.selectbox("Mês", list(range(1, 13)), index=datetime.today().month - 1)
+    year = st.number_input("Ano", min_value=2000, max_value=2100, value=datetime.today().year)
+
+    # Buscar despesas filtradas por mês e ano
+    st.subheader("Despesas com Anexos")
+    expenses = get_all_expenses()
+
+    if expenses:
+        df = pd.DataFrame(expenses)
+        # Alteração: Definir `dayfirst=True` explicitamente ao formatar datas
+        df['date'] = pd.to_datetime(df['date'], dayfirst=True).dt.strftime('%d/%m/%Y')  # Formato brasileiro DD/MM/AAAA
+
+        # Filtrar despesas por mês e ano
+        df['Mês'] = pd.to_datetime(df['date'], format='%d/%m/%Y', dayfirst=True).dt.month
+        df['Ano'] = pd.to_datetime(df['date'], format='%d/%m/%Y', dayfirst=True).dt.year
+        filtered_df = df[(df['Mês'] == month) & (df['Ano'] == year)]
+
+        if not filtered_df.empty:
+            for index, row in filtered_df.iterrows():
+                st.write(f"### Despesa: {row['name']} - R$ {row['amount']} - {row['date']}")
+                st.write(f"**Categoria:** {row['category']}")
+                st.write(f"**Observações:** {row.get('notes', 'Sem observações')}")
+                
+                # Se houver um anexo, exibi-lo de forma otimizada
+                if 'attachment_data' in row and row['attachment_data']:
+                    attachment_name = row.get('attachment_name', 'Anexo')
+                    attachment_type = row.get('attachment_type', '')
+
+                    # Garantir que attachment_type seja uma string antes de fazer a comparação
+                    if isinstance(attachment_type, str):
+                        # Exibir imagem como miniatura clicável
+                        if 'image' in attachment_type:
+                            st.image(row['attachment_data'], caption=attachment_name, width=150)  # Exibindo a imagem em miniatura
+                            # Botão para expandir a imagem em um modal (opcional)
+                            if st.button(f"Expandir Imagem {attachment_name}", key=f"expand_{index}"):
+                                st.image(row['attachment_data'], caption=attachment_name)  # Exibir imagem em tamanho real
+
+                        # Exibir PDF com visualização otimizada
+                        elif 'pdf' in attachment_type:
+                            # Exibir PDF usando um iframe com altura otimizada
+                            base64_pdf = base64.b64encode(row['attachment_data']).decode('utf-8')
+                            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="300" type="application/pdf"></iframe>'
+                            st.markdown(pdf_display, unsafe_allow_html=True)
+                            
+                            # Oferecer opção para abrir o PDF em uma nova aba
+                            pdf_url = f"data:application/pdf;base64,{base64_pdf}"
+                            st.markdown(f"[Clique aqui para abrir o PDF completo em uma nova aba]({pdf_url})", unsafe_allow_html=True)
+                    else:
+                        st.write(f"Tipo de anexo inválido ou ausente para a despesa: {row['name']}")
+
+                else:
+                    st.write("Nenhum anexo disponível para esta despesa.")
+
+        else:
+            st.write(f"Nenhuma despesa encontrada para {month}/{year}.")
+    else:
+        st.write("Nenhuma despesa registrada ainda.")
+
 
 
 
@@ -564,7 +660,7 @@ def show_analysis_page():
 st.sidebar.title("Menu")
 page = st.sidebar.selectbox(
     "Selecione a página", 
-    ["Despesas por Mês", "Resumo de Despesas", "Análise Inteligente", "Editar Despesas", "Apagar Despesas"]
+    ["Despesas por Mês", "Resumo de Despesas", "Análise Inteligente", "Editar Despesas", "Apagar Despesas", "Visualizar Anexos"]
 )
 
 # Mostrar a página de acordo com a seleção
@@ -578,3 +674,5 @@ elif page == "Editar Despesas":
     show_edit_page()
 elif page == "Apagar Despesas":
     show_delete_page()
+elif page == "Visualizar Anexos":
+    show_view_files_page()
