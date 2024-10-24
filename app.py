@@ -589,7 +589,7 @@ def show_analysis_page():
 
      
 
-# Função para exibir visualização de anexos de forma otimizada
+# Função para exibir visualização de anexos de forma otimizada com download correto
 def show_view_files_page():
     st.title("Visualizar Anexos das Despesas")
 
@@ -604,7 +604,7 @@ def show_view_files_page():
 
     if expenses:
         df = pd.DataFrame(expenses)
-        # Alteração: Definir `dayfirst=True` explicitamente ao formatar datas
+        # Definir `dayfirst=True` explicitamente ao formatar datas
         df['date'] = pd.to_datetime(df['date'], dayfirst=True).dt.strftime('%d/%m/%Y')  # Formato brasileiro DD/MM/AAAA
 
         # Filtrar despesas por mês e ano
@@ -617,7 +617,7 @@ def show_view_files_page():
                 st.write(f"### Despesa: {row['name']} - R$ {row['amount']} - {row['date']}")
                 st.write(f"**Categoria:** {row['category']}")
                 st.write(f"**Observações:** {row.get('notes', 'Sem observações')}")
-                
+
                 # Se houver um anexo, exibi-lo de forma otimizada
                 if 'attachment_data' in row and row['attachment_data']:
                     attachment_name = row.get('attachment_name', 'Anexo')
@@ -628,33 +628,23 @@ def show_view_files_page():
                         # Exibir imagem como miniatura clicável
                         if 'image' in attachment_type:
                             st.image(row['attachment_data'], caption=attachment_name, width=150)  # Exibindo a imagem em miniatura
-                            # Botão para expandir a imagem em um modal (opcional)
                             if st.button(f"Expandir Imagem {attachment_name}", key=f"expand_{index}"):
                                 st.image(row['attachment_data'], caption=attachment_name)  # Exibir imagem em tamanho real
 
-                        # Exibir PDF com visualização otimizada
+                        # Forçar o download do PDF
                         elif 'pdf' in attachment_type:
-                            # Exibir PDF usando um iframe com altura otimizada
+                            # Codificar o PDF em base64 para download
                             base64_pdf = base64.b64encode(row['attachment_data']).decode('utf-8')
-                            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="300" type="application/pdf"></iframe>'
-                            st.markdown(pdf_display, unsafe_allow_html=True)
-                            
-                            # Oferecer opção para abrir o PDF em uma nova aba
-                            pdf_url = f"data:application/pdf;base64,{base64_pdf}"
-                            st.markdown(f"[Clique aqui para abrir o PDF completo em uma nova aba]({pdf_url})", unsafe_allow_html=True)
+                            href = f'<a href="data:application/octet-stream;base64,{base64_pdf}" download="{attachment_name}">Baixar PDF: {attachment_name}</a>'
+                            st.markdown(href, unsafe_allow_html=True)
                     else:
                         st.write(f"Tipo de anexo inválido ou ausente para a despesa: {row['name']}")
-
                 else:
                     st.write("Nenhum anexo disponível para esta despesa.")
-
         else:
             st.write(f"Nenhuma despesa encontrada para {month}/{year}.")
     else:
         st.write("Nenhuma despesa registrada ainda.")
-
-
-
 
 # Sidebar para navegação
 st.sidebar.title("Menu")
