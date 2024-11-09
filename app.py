@@ -306,6 +306,7 @@ def show_summary_page():
 
 
 # Página de edição de despesas
+# Página de edição de despesas
 def show_edit_page():
     st.title("Editar Despesas")
 
@@ -352,7 +353,7 @@ def show_edit_page():
                             "Data", 
                             value=pd.to_datetime(expense_data.get("date")).date() if expense_data.get("date") else datetime.today().date()
                         )
-                        category_options = ["Água", "Energia", "Aluguel", "Internet"]
+                        category_options = ["Água", "Energia", "Aluguel", "Internet", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Roupas", "Trabalho", "Viagem", "Outros"]
                         current_category = expense_data.get('category', 'Outros')
                         if current_category not in category_options:
                             category_options.append(current_category)
@@ -365,14 +366,13 @@ def show_edit_page():
                         notes = st.text_area("Observações", value=expense_data.get("notes", ""))  # Campo para editar as observações
 
                         # Campo para anexar arquivos (imagem ou PDF)
-                        attachment = st.file_uploader("Anexar Imagem ou PDF", type=["pdf", "png", "jpg", "jpeg"])
+                        attachment = st.file_uploader("Anexar Imagem ou PDF", type=["pdf", "png", "jpg", "jpeg"], key='edit_attachment')
 
-                        payment_date = None
-                        if is_paid:
-                            payment_date = st.date_input(
-                                "Data de Pagamento", 
-                                value=pd.to_datetime(expense_data.get("payment_date")).date() if expense_data.get("payment_date") else datetime.today().date()
-                            )
+                        # Adicionado para garantir que "Data de Pagamento" sempre apareça
+                        payment_date = st.date_input(
+                            "Data de Pagamento", 
+                            value=pd.to_datetime(expense_data.get("payment_date")).date() if expense_data.get("payment_date") else datetime.today().date()
+                        )
 
                         edit_submit_button = st.form_submit_button("Salvar Alterações")
                         if edit_submit_button:
@@ -384,8 +384,8 @@ def show_edit_page():
                                 new_category, 
                                 is_paid, 
                                 payment_date, 
-                                notes,  # Incluindo Observações na atualização
-                                attachment  # Incluindo anexos na atualização
+                                notes,
+                                attachment
                             ):
                                 st.success(f"Despesa '{new_name}' editada com sucesso!")
                             else:
@@ -498,6 +498,8 @@ def show_analysis_page():
 
         # 2. Gráfico de variação percentual de cada mês (Inclui o Aluguel)
         monthly_expenses_pct_change = monthly_expenses_incl_rent.pct_change().fillna(0) * 100
+        monthly_expenses_value_change = monthly_expenses_incl_rent.diff().fillna(0)  # Calcula a diferença em valor
+
         st.subheader("Variação Percentual de Gastos")
 
         # Explicação sobre a variação percentual
@@ -513,6 +515,16 @@ def show_analysis_page():
         fig_pct.update_layout(xaxis=dict(tickvals=monthly_expenses_incl_rent.index, ticktext=monthly_expenses_incl_rent.index), 
                               yaxis_title="Variação (%)", xaxis_title="Mês")
         st.plotly_chart(fig_pct)
+
+        # Exibir valores de aumento ou redução abaixo do gráfico com cor apenas no valor
+        st.subheader("Aumento ou Redução Mensal em Valor")
+        for month, change in zip(monthly_expenses_incl_rent.index, monthly_expenses_value_change):
+            if change > 0:
+                st.markdown(f"Mês {month}: ⬆️ Aumento de <span style='color:red'>R$ {change:,.2f}</span>".replace('.', ',').replace(',', '.', 1), unsafe_allow_html=True)
+            elif change < 0:
+                st.markdown(f"Mês {month}: ⬇️ Redução de <span style='color:green'>R$ {abs(change):,.2f}</span>".replace('.', ',').replace(',', '.', 1), unsafe_allow_html=True)
+            else:
+                st.write(f"Mês {month}: Sem variação em relação ao mês anterior.")
 
         # 3. Gráfico de despesas por categoria ao longo do ano (Inclui Aluguel)
         st.subheader(f"Gastos por Categoria em {year}")
@@ -586,7 +598,6 @@ def show_analysis_page():
         
     else:
         st.write(f"Nenhuma despesa registrada para o ano de {year}.")
-
      
 
 # Função para exibir visualização de anexos de forma otimizada com download correto
